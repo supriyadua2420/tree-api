@@ -1,5 +1,5 @@
-from fastapi import APIRouter
-from app.models import Node
+from fastapi import APIRouter, HTTPException
+from app.models import Node, NodeUpdate
 from app.database import db
 
 router = APIRouter(prefix="/nodes", tags=["nodes"])
@@ -24,8 +24,8 @@ async def delete_node(node_id: str):
         return {"status": "Node deleted"}
 
 @router.put("/{node_id}")
-async def update_node(node_id: str, node: Node):
-    update_doc = node.dict(exclude_unset=True)
+async def update_node(node_id: str, node: NodeUpdate):
+    update_doc = {k: v for k, v in node.dict().items() if v is not None}
     if not update_doc:
         raise HTTPException(status_code=400, detail="No fields provided to update")
 
@@ -33,3 +33,5 @@ async def update_node(node_id: str, node: Node):
         {"id": node_id},
         {"$set": update_doc}
     )
+
+    return {"status": "updated"}
