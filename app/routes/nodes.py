@@ -11,8 +11,11 @@ async def create_node(node: Node):
     return {"id": str(result.inserted_id)}
 
 @router.get("/")
-async def get_nodes():
-    nodes = await nodes_collection.find().to_list(100)
+async def get_nodes(tree_id: str = None):
+    q = {}
+    if tree_id:
+        q["tree_id"] = tree_id
+    nodes = await nodes_collection.find(q).to_list(100)
     for node in nodes:
         node["_id"] = str(node["_id"])
     return nodes
