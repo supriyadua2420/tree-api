@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.routes import nodes
 from app.database import db
+from app.websockets import trees
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
@@ -8,6 +9,7 @@ import os
 app = FastAPI()
 
 app.include_router(nodes.router)
+app.include_router(trees.router)
 
 origins = os.getenv("CORS_ORIGINS", "").split(",")
 
