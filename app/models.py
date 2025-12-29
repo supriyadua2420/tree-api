@@ -8,7 +8,7 @@ class Node(BaseModel):
     tree_id: Optional[str] = None
     x: float = 0.0
     y: float = 0.0
-    version: int
+    version: Optional[int] = 1
 
 class NodeUpdate(BaseModel):
     label: Optional[str] = None

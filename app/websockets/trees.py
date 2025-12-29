@@ -1,6 +1,8 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError, parse_obj_as
 from typing import Union
+import time
+import uuid
 
 from app.websockets.manager import ConnectionManager
 from app.websockets.events import (
@@ -16,9 +18,9 @@ TreeEvent = Union[
     NodeLabelUpdateEvent,
 ]
 
-@router.websocket("/ws/trees/{tree_id}")
-async def tree_websocket(websocket: WebSocket, tree_id: str):
-    await manager.connect(tree_id, websocket)
+@router.websocket("/ws/trees/{tree_id}/{client_id}")
+async def tree_websocket(websocket: WebSocket, tree_id: str, client_id: str):
+    await manager.connect(tree_id, client_id, websocket)
 
     try:
         while True:
@@ -41,7 +43,10 @@ async def tree_websocket(websocket: WebSocket, tree_id: str):
                 })
                 continue
 
-            await manager.broadcast(tree_id, event.dict())
-
+            event_dict = event.dict()
+            event_dict['serverTS'] = time.time()
+            event_dict['eventId'] = str(uuid.uuid4())
+            await manager.broadcast(tree_id, event.dict(), exclude_client_id=client_id)
+                                                                 
     except WebSocketDisconnect:
         manager.disconnect(tree_id, websocket)
