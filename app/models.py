@@ -8,13 +8,14 @@ class Node(BaseModel):
     tree_id: Optional[str] = None
     x: float = 0.0
     y: float = 0.0
-    version: Optional[int] = 1
+    version: int = 1
 
 class NodeUpdate(BaseModel):
     label: Optional[str] = None
     parent_id: Optional[str] = None
     x: Optional[float] = None
     y: Optional[float] = None
+    version: Optional[int] = None
 
 class Tree(BaseModel):
     # id: Optional[str] = Field(default_factory=lambda: gen_id("t_"))

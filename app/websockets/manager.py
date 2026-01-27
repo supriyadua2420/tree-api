@@ -13,13 +13,9 @@ class ConnectionManager:
 
         self.active_connections[tree_id][client_id] = websocket
     
-    async def disconnect(self, tree_id: str, client_id: str, websocket: WebSocket):
-        if websocket in self.active_connections[tree_id]:
-            self.active_connections[tree_id].remove(websocket)
-        
+    async def disconnect(self, tree_id: str, client_id: str):
         if tree_id in self.active_connections:
             self.active_connections[tree_id].pop(client_id, None)
-
             if not self.active_connections[tree_id]:
                 del self.active_connections[tree_id]
 
