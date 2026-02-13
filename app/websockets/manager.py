@@ -1,5 +1,6 @@
 from fastapi import WebSocket
 from collections import defaultdict
+import asyncio
 
 class ConnectionManager:
     def __init__(self):
@@ -8,10 +9,7 @@ class ConnectionManager:
 
     async def connect(self, tree_id: str, client_id: str, websocket: WebSocket):
         await websocket.accept()
-        if tree_id not in self.active_connections:
-            self.active_connections[tree_id] = {}
-
-        self.active_connections[tree_id][client_id] = websocket
+        self.active_connections.setdefault(tree_id, {})[client_id] = websocket
     
     async def disconnect(self, tree_id: str, client_id: str):
         if tree_id in self.active_connections:
@@ -23,8 +21,11 @@ class ConnectionManager:
         if tree_id not in self.active_connections:
             return
 
+        send_tasks = []
         for client_id, websocket in self.active_connections[tree_id].items():
             if client_id == exclude_client_id:
                 continue
-            await websocket.send_json(message)
+            send_tasks.append(websocket.send_json(message))
+        if send_tasks:
+            await asyncio.gather(*send_tasks, return_exceptions=True)
         

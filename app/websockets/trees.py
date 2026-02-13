@@ -28,10 +28,13 @@ async def tree_websocket(websocket: WebSocket, tree_id: str, client_id: str):
     try:
         while True:
             raw = await websocket.receive_json()
+            print("Received raw:", raw)
+
 
             try:
                 event = parse_obj_as(TreeEvent, raw)
             except ValidationError as e:
+                print("Validation failed:", e)
                 await websocket.send_json({
                     "type": "ERROR",
                     "message": "Invalid event format",
@@ -60,13 +63,31 @@ async def tree_websocket(websocket: WebSocket, tree_id: str, client_id: str):
                 })
                 continue
 
-            updated_node = {**node, **event.payload.model_dump(), "version": server_version + 1}
+            # updated_node = {**node, **event.payload.model_dump(), "version": server_version + 1}
+            # await nodes_collection.replace_one({"id": node_id}, updated_node)
+
+            payload = event.payload
+
+            updated_node = {
+                **node,
+                "label": getattr(payload, "label", node["label"]),
+                "x": getattr(payload, "x", node.get("x")),
+                "y": getattr(payload, "y", node.get("y")),
+                "parent_id": getattr(payload, "parentId", node.get("parent_id")),
+                "version": server_version + 1,
+            }
+
+            print("Looking for node:", node_id)
             await nodes_collection.replace_one({"id": node_id}, updated_node)
+            print("Found node:", node)
+
 
             event_dict = event.dict()
             event_dict['serverTS'] = time.time()
             event_dict['eventId'] = str(uuid.uuid4())
-            await manager.broadcast(tree_id, event_dict, exclude_client_id=client_id)
+            event_dict['node'] = updated_node
+            event_dict['type'] = event.type
+            await manager.broadcast(tree_id, event_dict)
                                                                  
     except WebSocketDisconnect:
         manager.disconnect(tree_id, client_id)
