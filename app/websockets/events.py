@@ -16,11 +16,13 @@ class NodeMovePayload(BaseModel):
     nodeId: str
     x: float
     y: float
+    version: int 
 
 
 class NodeLabelUpdatePayload(BaseModel):
     nodeId: str
     label: str
+    version: int 
 
 
 class NodeMoveEvent(BaseEvent):

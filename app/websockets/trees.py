@@ -21,6 +21,7 @@ TreeEvent = Union[
     NodeLabelUpdateEvent,
 ]
 
+
 @router.websocket("/ws/trees/{tree_id}/{client_id}")
 async def tree_websocket(websocket: WebSocket, tree_id: str, client_id: str):
     await manager.connect(tree_id, client_id, websocket)
@@ -30,64 +31,101 @@ async def tree_websocket(websocket: WebSocket, tree_id: str, client_id: str):
             raw = await websocket.receive_json()
             print("Received raw:", raw)
 
-
+            # -----------------------------
+            # Validate event format
+            # -----------------------------
             try:
                 event = parse_obj_as(TreeEvent, raw)
             except ValidationError as e:
-                print("Validation failed:", e)
                 await websocket.send_json({
                     "type": "ERROR",
                     "message": "Invalid event format",
                     "details": e.errors(),
                 })
                 continue
-            
-            node_id = event.payload.nodeId
-            client_version = getattr(event.payload, "version", 1)
 
-            node = await nodes_collection.find_one({"id": node_id})
-            if not node:
+            node_id = str(event.payload.nodeId)
+            client_version = getattr(event.payload, "version", None)
+
+            if client_version is None:
                 await websocket.send_json({
                     "type": "ERROR",
-                    "message": f"Node {node_id} not found",
+                    "message": "Missing version",
                 })
                 continue
 
-            server_version = node.get("version", 1)
+            # -----------------------------
+            # Atomic optimistic update
+            # -----------------------------
+            payload_dict = event.payload.model_dump()
 
-            if client_version < server_version:
+            update_fields = {}
+
+            if "label" in payload_dict:
+                update_fields["label"] = payload_dict["label"]
+
+            if "x" in payload_dict:
+                update_fields["x"] = payload_dict["x"]
+
+            if "y" in payload_dict:
+                update_fields["y"] = payload_dict["y"]
+
+            if "parentId" in payload_dict:
+                update_fields["parent_id"] = payload_dict["parentId"]
+
+            result = await nodes_collection.update_one(
+                {
+                    "id": node_id,
+                    "tree_id": tree_id,
+                    "version": client_version,  # 🔥 version check
+                },
+                {
+                    "$set": update_fields,
+                    "$inc": {"version": 1},     # 🔥 atomic increment
+                }
+            )
+
+            # -----------------------------
+            # Version conflict
+            # -----------------------------
+            if result.matched_count == 0:
+                latest = await nodes_collection.find_one(
+                    {"id": node_id, "tree_id": tree_id}
+                )
+
+                latest["_id"] = str(latest["_id"])
+
+
                 await websocket.send_json({
                     "type": "ERROR",
                     "message": "Version conflict",
-                    "serverVersion": server_version,
+                    "serverVersion": latest.get("version", 1),
+                    "node": latest,  # 🔥 send full node so frontend resyncs
                 })
                 continue
 
-            # updated_node = {**node, **event.payload.model_dump(), "version": server_version + 1}
-            # await nodes_collection.replace_one({"id": node_id}, updated_node)
+            # -----------------------------
+            # Fetch updated node
+            # -----------------------------
+            updated_node = await nodes_collection.find_one(
+                {"id": node_id, "tree_id": tree_id}
+            )
 
-            payload = event.payload
+            updated_node["_id"] = str(updated_node["_id"])
 
-            updated_node = {
-                **node,
-                "label": getattr(payload, "label", node["label"]),
-                "x": getattr(payload, "x", node.get("x")),
-                "y": getattr(payload, "y", node.get("y")),
-                "parent_id": getattr(payload, "parentId", node.get("parent_id")),
-                "version": server_version + 1,
+            # -----------------------------
+            # Broadcast to all clients
+            # -----------------------------
+            broadcast_event = {
+                "type": event.type,
+                "treeId": tree_id,
+                "clientId": client_id,
+                "eventId": str(uuid.uuid4()),
+                "serverTS": time.time(),
+                "node": updated_node,
             }
 
-            print("Looking for node:", node_id)
-            await nodes_collection.replace_one({"id": node_id}, updated_node)
-            print("Found node:", node)
+            await manager.broadcast(tree_id, broadcast_event)
 
-
-            event_dict = event.dict()
-            event_dict['serverTS'] = time.time()
-            event_dict['eventId'] = str(uuid.uuid4())
-            event_dict['node'] = updated_node
-            event_dict['type'] = event.type
-            await manager.broadcast(tree_id, event_dict)
-                                                                 
     except WebSocketDisconnect:
-        manager.disconnect(tree_id, client_id)
+        await manager.disconnect(tree_id, client_id)
