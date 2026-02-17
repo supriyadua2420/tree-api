@@ -22,9 +22,19 @@ async def get_nodes(tree_id: str = None):
 
 @router.delete("/{node_id}")
 async def delete_node(node_id: str):
-    result = await nodes_collection.delete_one({"id" : node_id})
-    if result.deleted_count == 1:
-        return {"status": "Node deleted"}
+    node = await nodes_collection.find_one({"id": node_id})
+    if not node:
+        return {"message": "Not found"}
+
+    parent_id = node.get("parent_id")
+
+    await nodes_collection.update_many(
+        {"parent_id": node_id},
+        {"$set": {"parent_id": parent_id}}
+    )
+    await nodes_collection.delete_one({"id": node_id})
+
+    return {"message": "Deleted"}
 
 @router.put("/{node_id}")
 async def update_node(node_id: str, node: NodeUpdate):

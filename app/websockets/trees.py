@@ -93,16 +93,23 @@ async def tree_websocket(websocket: WebSocket, tree_id: str, client_id: str):
                     {"id": node_id, "tree_id": tree_id}
                 )
 
-                latest["_id"] = str(latest["_id"])
+                if latest is None:
+                    await websocket.send_json({
+                        "type": "ERROR",
+                        "message": "Node not found"
+                    })
+                    continue
 
+                latest["_id"] = str(latest["_id"])
 
                 await websocket.send_json({
                     "type": "ERROR",
                     "message": "Version conflict",
                     "serverVersion": latest.get("version", 1),
-                    "node": latest,  # 🔥 send full node so frontend resyncs
+                    "node": latest,
                 })
                 continue
+
 
             # -----------------------------
             # Fetch updated node
