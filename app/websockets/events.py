@@ -1,21 +1,28 @@
 from pydantic import BaseModel
 from typing import Literal
+from typing import Optional
+import time
+import uuid
 
 class BaseEvent(BaseModel):
     type: str
     treeId: str
     clientId: str
+    serverTS: Optional[float] = None
+    eventId: Optional[str] = None
 
 
 class NodeMovePayload(BaseModel):
     nodeId: str
     x: float
     y: float
+    version: int 
 
 
 class NodeLabelUpdatePayload(BaseModel):
     nodeId: str
     label: str
+    version: int 
 
 
 class NodeMoveEvent(BaseEvent):
