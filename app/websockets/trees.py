@@ -132,6 +132,8 @@ async def tree_websocket(websocket: WebSocket, tree_id: str, client_id: str):
                 "node": updated_node,
             }
 
+            print("Client connected:", id(websocket))
+            print("Broadcasting to", len(manager.active_connections.get(tree_id, {})), "clients")
             await manager.broadcast(tree_id, broadcast_event)
 
     except WebSocketDisconnect:
