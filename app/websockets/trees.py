@@ -3,6 +3,8 @@ from pydantic import ValidationError, parse_obj_as
 from typing import Union
 import time
 import uuid
+from app.core.redis import redis_client
+import json
 
 from app.websockets.manager import ConnectionManager
 from app.database import db
@@ -134,7 +136,12 @@ async def tree_websocket(websocket: WebSocket, tree_id: str, client_id: str):
 
             print("Client connected:", id(websocket))
             print("Broadcasting to", len(manager.active_connections.get(tree_id, {})), "clients")
-            await manager.broadcast(tree_id, broadcast_event)
-
+            await redis_client.publish(
+                "tree_broadcast",
+                json.dumps({
+                    "tree_id": tree_id,
+                    "payload": broadcast_event,
+                })
+            )
     except WebSocketDisconnect:
         await manager.disconnect(tree_id, client_id)
